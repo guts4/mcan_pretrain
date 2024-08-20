@@ -68,7 +68,7 @@ class Cfgs(PATH):
             'val': 'val',
             'test': 'test',
         }
-
+        self.DATASET_LIST = ['vqa', 'okvqa', 'aokvqa']
         # A external method to set train split
         self.TRAIN_SPLIT = 'train+val+vg'
 
@@ -91,7 +91,7 @@ class Cfgs(PATH):
         self.IMG_FEAT_PAD_SIZE = 100
 
         # Faster-rcnn 2048D features
-        self.IMG_FEAT_SIZE = 2048
+        self.IMG_FEAT_SIZE = 1024#2048
 
         # Default training batch size: 64
         self.BATCH_SIZE = 64

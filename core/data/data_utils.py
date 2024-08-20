@@ -167,16 +167,30 @@ def proc_ans(ans, ans_to_ix):
     ans_score = np.zeros(ans_to_ix.__len__(), np.float32)
     ans_prob_dict = {}
 
-    for ans_ in ans['answers']:
+    # 우선 answers 키가 있는지 확인합니다.
+    if 'answers' in ans:
+        answers = ans['answers']
+    elif 'direct_answers' in ans:
+        # answers 키가 없으면 direct_answers 키를 사용합니다.
+        answers = [{'answer': direct_ans} for direct_ans in ans['direct_answers']]
+    else:
+        # answers나 direct_answers 키가 모두 없으면 경고를 출력하고 빈 배열 반환
+        print(f"Warning: 'answers' or 'direct_answers' key not found. Data: {ans}")
+        return ans_score
+
+    # 정답을 처리합니다.
+    for ans_ in answers:
         ans_proc = prep_ans(ans_['answer'])
         if ans_proc not in ans_prob_dict:
             ans_prob_dict[ans_proc] = 1
         else:
             ans_prob_dict[ans_proc] += 1
 
+    # ans_to_ix를 사용해 정답의 스코어를 설정합니다.
     for ans_ in ans_prob_dict:
         if ans_ in ans_to_ix:
             ans_score[ans_to_ix[ans_]] = get_score(ans_prob_dict[ans_])
 
     return ans_score
+
 

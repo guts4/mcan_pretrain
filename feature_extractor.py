@@ -52,8 +52,8 @@ def extract_and_save_features(image_dir, feature_save_dir, vit_extractor):
 
 def train_vqa():
     # 이미지와 저장 경로 설정
-    image_dir = "/root/workspace/24s-VQA-MLLM/dataset/coco/images/train2014"
-    feature_save_dir = "/root/workspace/24s-VQA-MLLM/features/train2014"
+    image_dir = "/root/workspace/24s-VQA-MLLM/dataset/coco/images/test2015"
+    feature_save_dir = "/root/workspace/24s-VQA-MLLM/features/test2015"
     
     # ViT 특징 추출기 초기화
     vit_extractor = VitFeatureExtractor()

@@ -45,22 +45,37 @@ class VQA:
 			self.createIndex()
 
 	def createIndex(self):
-		# create index
 		print('creating index...')
-		imgToQA = {ann['image_id']: [] for ann in self.dataset['annotations']}
-		qa = {ann['question_id']: [] for ann in self.dataset['annotations']}
-		qqa = {ann['question_id']: [] for ann in self.dataset['annotations']}
-		for ann in self.dataset['annotations']:
-			imgToQA[ann['image_id']] += [ann]
-			qa[ann['question_id']] = ann
-		for ques in self.questions['questions']:
-			qqa[ques['question_id']] = ques
+		
+		# aokvqa 데이터셋 처리 로직 추가
+		if isinstance(self.questions, list):  # self.questions가 리스트인 경우
+			imgToQA = {}
+			qa = {}
+			qqa = {}
+			for ques in self.questions:
+				qqa[ques['question_id']] = ques
+				img_id = ques.get('image_id')
+				if img_id is not None:
+					if img_id not in imgToQA:
+						imgToQA[img_id] = []
+					imgToQA[img_id].append(ques)
+				qa[ques['question_id']] = ques
+			self.imgToQA = imgToQA
+			self.qa = qa
+			self.qqa = qqa
+		else:  # 일반 VQA 데이터셋 처리
+			imgToQA = {ann['image_id']: [] for ann in self.dataset['annotations']}
+			qa = {ann['question_id']: [] for ann in self.dataset['annotations']}
+			qqa = {ann['question_id']: [] for ann in self.dataset['annotations']}
+			for ann in self.dataset['annotations']:
+				imgToQA[ann['image_id']] += [ann]
+				qa[ann['question_id']] = ann
+			for ques in self.questions['questions']:
+				qqa[ques['question_id']] = ques
+			self.imgToQA = imgToQA
+			self.qa = qa
+			self.qqa = qqa
 		print('index created!')
-
-		# create class members
-		self.qa = qa
-		self.qqa = qqa
-		self.imgToQA = imgToQA
 
 	def info(self):
 		"""
@@ -82,17 +97,30 @@ class VQA:
 		quesTypes = quesTypes if type(quesTypes) == list else [quesTypes]
 		ansTypes = ansTypes if type(ansTypes) == list else [ansTypes]
 
-		if len(imgIds) == len(quesTypes) == len(ansTypes) == 0:
-			anns = self.dataset['annotations']
+		if isinstance(self.dataset, list):
+			# 처리할 데이터가 리스트인 경우 (예: aokvqa)
+			anns = self.dataset
+			if len(imgIds) > 0:
+				anns = [ann for ann in anns if ann['image_id'] in imgIds]
+			if len(quesTypes) > 0:
+				anns = [ann for ann in anns if ann['question_type'] in quesTypes]
+			if len(ansTypes) > 0:
+				anns = [ann for ann in anns if ann['answer_type'] in ansTypes]
 		else:
-			if not len(imgIds) == 0:
-				anns = sum([self.imgToQA[imgId] for imgId in imgIds if imgId in self.imgToQA], [])
-			else:
+			# 일반 VQA 데이터셋 처리
+			if len(imgIds) == len(quesTypes) == len(ansTypes) == 0:
 				anns = self.dataset['annotations']
-			anns = anns if len(quesTypes) == 0 else [ann for ann in anns if ann['question_type'] in quesTypes]
-			anns = anns if len(ansTypes) == 0 else [ann for ann in anns if ann['answer_type'] in ansTypes]
+			else:
+				if not len(imgIds) == 0:
+					anns = sum([self.imgToQA[imgId] for imgId in imgIds if imgId in self.imgToQA], [])
+				else:
+					anns = self.dataset['annotations']
+				anns = anns if len(quesTypes) == 0 else [ann for ann in anns if ann['question_type'] in quesTypes]
+				anns = anns if len(ansTypes) == 0 else [ann for ann in anns if ann['answer_type'] in ansTypes]
+
 		ids = [ann['question_id'] for ann in anns]
 		return ids
+
 
 	def getImgIds(self, quesIds=[], quesTypes=[], ansTypes=[]):
 		"""
@@ -151,28 +179,47 @@ class VQA:
 		"""
 		res = VQA()
 		res.questions = json.load(open(quesFile))
-		res.dataset['info'] = copy.deepcopy(self.questions['info'])
-		res.dataset['task_type'] = copy.deepcopy(self.questions['task_type'])
-		res.dataset['data_type'] = copy.deepcopy(self.questions['data_type'])
-		res.dataset['data_subtype'] = copy.deepcopy(self.questions['data_subtype'])
-		res.dataset['license'] = copy.deepcopy(self.questions['license'])
+
+		# Initialize the dataset dictionary
+		res.dataset = {}
+
+		# Check if 'info' key exists in the questions, if not skip it
+		if 'info' in self.questions:
+			res.dataset['info'] = copy.deepcopy(self.questions['info'])
+		if 'task_type' in self.questions:
+			res.dataset['task_type'] = copy.deepcopy(self.questions['task_type'])
+		if 'data_type' in self.questions:
+			res.dataset['data_type'] = copy.deepcopy(self.questions['data_type'])
+		if 'data_subtype' in self.questions:
+			res.dataset['data_subtype'] = copy.deepcopy(self.questions['data_subtype'])
+		if 'license' in self.questions:
+			res.dataset['license'] = copy.deepcopy(self.questions['license'])
 
 		print('Loading and preparing results...     ')
 		time_t = datetime.datetime.utcnow()
 		anns = json.load(open(resFile))
 		assert type(anns) == list, 'results is not an array of objects'
 		annsQuesIds = [ann['question_id'] for ann in anns]
+
+		# Add check to ensure the question IDs match the expected set
 		assert set(annsQuesIds) == set(self.getQuesIds()), \
-			'Results do not correspond to current VQA set. Either the results do not have predictions for all question ids in annotation file or there is atleast one question id that does not belong to the question ids in the annotation file.'
+			'Results do not correspond to current VQA set. Either the results do not have predictions for all question ids in the annotation file or there is at least one question id that does not belong to the question ids in the annotation file.'
+
 		for ann in anns:
 			quesId = ann['question_id']
-			if res.dataset['task_type'] == 'Multiple Choice':
+
+			# Handle Multiple Choice scenario if it exists
+			if 'task_type' in res.dataset and res.dataset['task_type'] == 'Multiple Choice':
 				assert ann['answer'] in self.qqa[quesId][
 					'multiple_choices'], 'predicted answer is not one of the multiple choices'
-			qaAnn = self.qa[quesId]
-			ann['image_id'] = qaAnn['image_id']
-			ann['question_type'] = qaAnn['question_type']
-			ann['answer_type'] = qaAnn['answer_type']
+			
+			# Handle cases where qaAnn might not be available
+			if quesId in self.qa:
+				qaAnn = self.qa[quesId]
+				ann['image_id'] = qaAnn.get('image_id', None)
+				ann['question_type'] = qaAnn.get('question_type', None)
+				ann['answer_type'] = qaAnn.get('answer_type', None)
+
 		print('DONE (t=%0.2fs)' % ((datetime.datetime.utcnow() - time_t).total_seconds()))
 
 		res.dataset['annotations'] = anns

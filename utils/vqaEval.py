@@ -83,24 +83,65 @@ class VQAEval:
 		print ("computing accuracy")
 		step = 0
 		for quesId in quesIds:
-			resAns      = res[quesId]['answer']
+			# question_id가 int인지 str인지 확인하여 처리
+			if isinstance(quesId, str):
+				if quesId in res:
+					if 'answer' not in res[quesId]:
+						if 'direct_answers' in res[quesId]:
+							res[quesId]['answer'] = res[quesId]['direct_answers'][0]
+						else:
+							print(f"Warning: 'direct_answers' key not found for question ID {quesId}")
+					resAns = res[quesId]['answer']
+				else:
+					print(f"Warning: Question ID {quesId} not found in results.")
+					continue
+			# question_id가 int인 경우 기존 방식 유지
+			else:
+				if str(quesId) in res:
+					resAns = res[str(quesId)]['answer']
+				elif int(quesId) in res:
+					resAns = res[int(quesId)]['answer']
+				else:
+					raise KeyError(f"Question ID {quesId} not found in results.")
 			resAns      = resAns.replace('\n', ' ')
 			resAns      = resAns.replace('\t', ' ')
 			resAns      = resAns.strip()
 			resAns      = self.processPunctuation(resAns)
 			resAns      = self.processDigitArticle(resAns)
+
 			gtAcc  = []
-			gtAnswers = [ans['answer'] for ans in gts[quesId]['answers']]
-			if len(set(gtAnswers)) > 1: 
-				for ansDic in gts[quesId]['answers']:
-					ansDic['answer'] = self.processPunctuation(ansDic['answer'])
-			for gtAnsDatum in gts[quesId]['answers']:
-				otherGTAns = [item for item in gts[quesId]['answers'] if item!=gtAnsDatum]
-				matchingAns = [item for item in otherGTAns if item['answer']==resAns]
-				acc = min(1, float(len(matchingAns))/3)
-				gtAcc.append(acc)
-			quesType    = gts[quesId]['question_type']
-			ansType     = gts[quesId]['answer_type']
+			if 'answers' in gts[quesId]:
+				gtAnswers = [ans['answer'] for ans in gts[quesId]['answers']]
+			else:
+				# aokvqa와 같은 데이터셋의 경우 'direct_answers' 키가 있을 수 있음
+				if 'direct_answers' in gts[quesId]:
+					gtAnswers = gts[quesId]['direct_answers'][0]
+				else:
+					print(f"Warning: No 'answers' or 'direct_answers' found for question ID {quesId}")
+					continue
+			if 'answers' in gts[quesId]:
+				if len(set(gtAnswers)) > 1: 
+					for ansDic in gts[quesId]['answers']:
+						ansDic['answer'] = self.processPunctuation(ansDic['answer'])
+				for gtAnsDatum in gts[quesId]['answers']:
+					otherGTAns = [item for item in gts[quesId]['answers'] if item != gtAnsDatum]
+					matchingAns = [item for item in otherGTAns if item['answer'] == resAns]
+					acc = min(1, float(len(matchingAns)) / 3)
+					gtAcc.append(acc)
+			else:
+				# aokvqa와 같은 데이터셋의 경우 'direct_answers' 사용
+				if len(set(gtAnswers)) > 1:
+					gtAnswers = [self.processPunctuation(ans) for ans in gts[quesId]['direct_answers']]
+				for gtAnsDatum in gts[quesId]['direct_answers']:
+					otherGTAns = [item for item in gts[quesId]['direct_answers'] if item != gtAnsDatum]
+					matchingAns = [item for item in otherGTAns if item == resAns]
+					acc = min(1, float(len(matchingAns)) / 3)
+					gtAcc.append(acc)
+
+			#quesType    = gts[quesId]['question_type']
+			#ansType     = gts[quesId]['answer_type']
+			quesType = gts[quesId].get('question_type', 'unknown')
+			ansType = gts[quesId].get('answer_type', 'unknown')
 			avgGTAcc = float(sum(gtAcc))/len(gtAcc)
 			accQA.append(avgGTAcc)
 			if quesType not in accQuesType:

@@ -97,6 +97,8 @@ class Net(nn.Module):
         # Make mask
         lang_feat_mask = self.make_mask(ques_ix.unsqueeze(2))
         img_feat_mask = self.make_mask(img_feat)
+        if len(img_feat_mask.shape) == 3:
+            img_feat_mask = img_feat_mask.unsqueeze(2)  # [64, 1, 1, 1]
 
         # Pre-process Language Feature
         lang_feat = self.embedding(ques_ix)
